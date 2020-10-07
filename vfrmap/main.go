@@ -16,17 +16,17 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/lian/msfs2020-go/simconnect"
-	"github.com/lian/msfs2020-go/vfrmap/html/leafletjs"
-	"github.com/lian/msfs2020-go/vfrmap/websockets"
+	"github.com/supersidor/msfs2020-go/simconnect"
+	"github.com/supersidor/msfs2020-go/vfrmap/html/leafletjs"
+	"github.com/supersidor/msfs2020-go/vfrmap/websockets"
 )
 
 type Report struct {
 	simconnect.RecvSimobjectDataByType
 	Title         [256]byte `name:"TITLE"`
 	Altitude      float64   `name:"INDICATED ALTITUDE" unit:"feet"` // PLANE ALTITUDE or PLANE ALT ABOVE GROUND
-	Latitude      float64   `name:"PLANE LATITUDE" unit:"degrees"`
-	Longitude     float64   `name:"PLANE LONGITUDE" unit:"degrees"`
+	Latitude      float64   //`name:"PLANE LATITUDE" unit:"degrees"`
+	Longitude     float64   //`name:"PLANE LONGITUDE" unit:"degrees"`
 	Heading       float64   `name:"PLANE HEADING DEGREES TRUE" unit:"degrees"`
 	Airspeed      float64   `name:"AIRSPEED INDICATED" unit:"knot"`
 	AirspeedTrue  float64   `name:"AIRSPEED TRUE" unit:"knot"`

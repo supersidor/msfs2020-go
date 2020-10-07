@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/supersidor/msfs2020-go/simconnect"
+	"net/http"
 	"time"
-
-	"github.com/lian/msfs2020-go/simconnect"
 )
 
 // ported from: MSFS-SDK/Samples/SimConnectSamples/RequestData/RequestData.cpp
@@ -12,11 +14,17 @@ import (
 
 type Report struct {
 	simconnect.RecvSimobjectDataByType
-	Title     [256]byte `name:"TITLE"`
-	Kohlsman  float64   `name:"Kohlsman setting hg" unit:"inHg"`
-	Altitude  float64   `name:"Plane Altitude" unit:"feet"`
-	Latitude  float64   `name:"Plane Latitude" unit:"degrees"`
-	Longitude float64   `name:"Plane Longitude" unit:"degrees"`
+	Title         [256]byte `name:"TITLE"`
+	Altitude      float64   `name:"INDICATED ALTITUDE" unit:"feet"` // PLANE ALTITUDE or PLANE ALT ABOVE GROUND
+	Latitude      float64   `name:"PLANE LATITUDE" unit:"degrees"`
+	Longitude     float64   `name:"PLANE LONGITUDE" unit:"degrees"`
+	Heading       float64   `name:"PLANE HEADING DEGREES TRUE" unit:"degrees"`
+	Airspeed      float64   `name:"AIRSPEED INDICATED" unit:"knot"`
+	AirspeedTrue  float64   `name:"AIRSPEED TRUE" unit:"knot"`
+	VerticalSpeed float64   `name:"VERTICAL SPEED" unit:"ft/min"`
+	Flaps         float64   `name:"TRAILING EDGE FLAPS LEFT ANGLE" unit:"degrees"`
+	Trim          float64   `name:"ELEVATOR TRIM PCT" unit:"percent"`
+	RudderTrim    float64   `name:"RUDDER TRIM PCT" unit:"percent"`
 }
 
 func (r *Report) RequestData(s *simconnect.SimConnect) {
@@ -25,7 +33,34 @@ func (r *Report) RequestData(s *simconnect.SimConnect) {
 	s.RequestDataOnSimObjectType(requestID, defineID, 0, simconnect.SIMOBJECT_TYPE_USER)
 }
 
+type Request struct {
+	Title     string  `json:"title"`
+	Altitude  float64 `json:"altitude"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Heading   float64 `json:"heading"`
+	Timestamp int64   `json:"timestamp"`
+}
+
+func makeTimestamp() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
+}
+
 func main() {
+
+	req := &Request{Title: "Frank", Altitude: 1, Latitude: 0.1, Longitude: 0.1, Heading: 360}
+	b, err := json.Marshal(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(string(b))
+	_, err = http.Post("http://localhost:8080/sim", "application/json", bytes.NewBuffer(b))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	s, err := simconnect.New("Request Data")
 	if err != nil {
 		panic(err)
@@ -35,13 +70,6 @@ func main() {
 	report := &Report{}
 	s.RegisterDataDefinition(report)
 	report.RequestData(s)
-
-	/*
-		fmt.Println("SubscribeToSystemEvent")
-		eventSimStartID := simconnect.DWORD(0)
-		s.SubscribeToSystemEvent(eventSimStartID, "SimStart")
-	*/
-
 	for {
 		ppData, r1, err := s.GetNextDispatch()
 
@@ -86,6 +114,17 @@ func main() {
 			case s.DefineMap["Report"]:
 				report := (*Report)(ppData)
 				fmt.Printf("REPORT: %s: GPS: %.6f,%.6f Altitude: %.0f\n", report.Title, report.Latitude, report.Longitude, report.Altitude)
+				if report.Longitude > 0.1 || report.Latitude > 0.1 {
+					req := &Request{
+						Title:     string(report.Title[:bytes.IndexByte(report.Title[:], 0)]),
+						Altitude:  report.Altitude,
+						Latitude:  report.Latitude,
+						Longitude: report.Longitude,
+						Heading:   report.Heading,
+						Timestamp: makeTimestamp(),
+					}
+					sendData(req)
+				}
 				report.RequestData(s)
 			}
 
@@ -93,7 +132,7 @@ func main() {
 			fmt.Println("recvInfo.dwID unknown", recvInfo.ID)
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 	}
 
 	fmt.Println("close")
@@ -101,4 +140,19 @@ func main() {
 	if err = s.Close(); err != nil {
 		panic(err)
 	}
+}
+
+func sendData(req *Request) {
+	b, err := json.Marshal(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(string(b))
+	_, err = http.Post("http://localhost:8080/sim", "application/json", bytes.NewBuffer(b))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	return
 }
