@@ -2,13 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/supersidor/msfs2020-go/simconnect"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"time"
 )
 
@@ -48,46 +53,128 @@ type Request struct {
 func makeTimestamp() int64 {
 	return time.Now().UnixNano() / int64(time.Millisecond)
 }
-func callbackHandler(w http.ResponseWriter, r *http.Request) {
-	queryParts, _ := url.ParseQuery(r.URL.RawQuery)
-	token := queryParts["token"][0]
-	log.Printf("token: %s\n", token)
 
-	//
-	//// Use the authorization code that is pushed to the redirect
-	//// URL.
-	//code := queryParts["code"][0]
-	//log.Printf("code: %s\n", code)
-	//
-	//// Exchange will do the handshake to retrieve the initial access token.
-	//tok, err := conf.Exchange(ctx, code)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//log.Printf("Token: %s", tok)
-	//// The HTTP Client returned by conf.Client will refresh the token as necessary.
-	//client := conf.Client(ctx, tok)
-	//
-	//resp, err := client.Get("http://some-server.example.com/")
-	//if err != nil {
-	//	log.Fatal(err)
-	//} else {
-	//	log.Println(color.CyanString("Authentication successful"))
-	//}
-	//defer resp.Body.Close()
-	//
-	//// show succes page
-	//msg := "<p><strong>Success!</strong></p>"
-	//msg = msg + "<p>You are authenticated and can now return to the CLI.</p>"
-	//fmt.Fprintf(w, msg)
+type UserInfo struct {
+	Id    int    `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+const baseUrl string = "http://localhost:3000/ui/login_console"
+const serverPort = 9999
+
+var token string
+
+const tokenFileName = "token.jwt"
+
+func authenticate(baseUrl string, serverPort int) (string, error) {
+	targetUrl := baseUrl + "?redirect_uri=http://localhost:" + strconv.Itoa(serverPort) + "/oauth2/callback"
+	srv := &http.Server{Addr: ":" + strconv.Itoa(serverPort)}
+	var result string
+	chQuit := make(chan bool)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		queryParts, _ := url.ParseQuery(r.URL.RawQuery)
+		result = queryParts["token"][0]
+		log.Printf("token: %s\n", token)
+
+		msg := "<h1><strong>Success!</strong></h1>"
+		msg = msg + "<p>You are authenticated.You could close window now and return to the CLI.</p>"
+		fmt.Fprintf(w, msg)
+		chQuit <- true
+	})
+	go func() {
+		log.Println("server starting")
+		if err := srv.ListenAndServe(); err != nil {
+			//log.Fatalf("listenAndServe failed: %v", err)
+		}
+	}()
+	fmt.Println("server started")
+	open.Run(targetUrl)
+
+	_ = <-chQuit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal(err)
+	}
+
+	return result, nil
+}
+
+func loadToken(fileName string) string {
+	info, err := os.Stat(fileName)
+	if os.IsNotExist(err) || !info.IsDir() {
+		return ""
+	}
+	content, err := ioutil.ReadFile(fileName)
+
+	return string(content)
+}
+func saveToken(fileName string, token string) {
+	file, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		file.WriteString(token)
+	}
+	file.Close()
+}
+func getUser(token string) (*UserInfo, error) {
+	req, err := http.NewRequest("GET", "http://localhost:8080/api/user/me", nil)
+	req.Header.Add("Authorization", "Bearer "+token)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		var userInfo UserInfo
+		err = json.Unmarshal(bodyBytes, &userInfo)
+		fmt.Println(string(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+		return &userInfo, nil
+	} else {
+		return nil, fmt.Errorf("Got status code %d", resp.StatusCode)
+	}
+
+	//resp, err := http.Get("https://localhost:8080/api/user/me")
 }
 func main() {
-	url := "http://localhost:3000/ui/login?redirect_uri=http://localhost:9999/oauth2/callback"
 
-	open.Run(url)
+	var userInfo *UserInfo
+	token := loadToken(tokenFileName)
+	passed := false
+	if len(token) > 0 {
+		userInfo, _ = getUser(token)
+		if userInfo != nil {
+			fmt.Println(userInfo)
+			passed = true
+		} else {
+			fmt.Println("Failed to get userInfo.Request authentication")
+		}
+	}
+	if !passed {
+		log.Println(color.CyanString("You will now be taken to your browser for authentication"))
+		time.Sleep(1 * time.Second)
+		token, _ = authenticate(baseUrl, serverPort)
+		if len(token) > 0 {
+			userInfo, _ := getUser(token)
+			if userInfo != nil {
+				saveToken(tokenFileName, token)
+				fmt.Println(userInfo)
+			} else {
+				log.Fatal("Failed to get userInfo")
+			}
+		}
+	}
 
-	http.HandleFunc("/oauth2/callback", callbackHandler)
-	log.Fatal(http.ListenAndServe(":9999", nil))
+	//http.HandleFunc("/oauth2/callback", callbackHandler)
+	//log.Fatal(http.ListenAndServe(":9999", nil))
 
 	//heading := 0
 	//for{

@@ -287,14 +287,14 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"leaflet.css": leafletCss,
-	"leaflet.js": leafletJs,
-	"leaflet.rotatedMarker.js": leafletRotatedmarkerJs,
-	"images/layers-2x.png": imagesLayers2xPng,
-	"images/layers.png": imagesLayersPng,
+	"leaflet.css":               leafletCss,
+	"leaflet.js":                leafletJs,
+	"leaflet.rotatedMarker.js":  leafletRotatedmarkerJs,
+	"images/layers-2x.png":      imagesLayers2xPng,
+	"images/layers.png":         imagesLayersPng,
 	"images/marker-icon-2x.png": imagesMarkerIcon2xPng,
-	"images/marker-icon.png": imagesMarkerIconPng,
-	"images/marker-shadow.png": imagesMarkerShadowPng,
+	"images/marker-icon.png":    imagesMarkerIconPng,
+	"images/marker-shadow.png":  imagesMarkerShadowPng,
 }
 
 // AssetDir returns the file names below a certain
@@ -336,16 +336,17 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
 	"images": &bintree{nil, map[string]*bintree{
-		"layers-2x.png": &bintree{imagesLayers2xPng, map[string]*bintree{}},
-		"layers.png": &bintree{imagesLayersPng, map[string]*bintree{}},
+		"layers-2x.png":      &bintree{imagesLayers2xPng, map[string]*bintree{}},
+		"layers.png":         &bintree{imagesLayersPng, map[string]*bintree{}},
 		"marker-icon-2x.png": &bintree{imagesMarkerIcon2xPng, map[string]*bintree{}},
-		"marker-icon.png": &bintree{imagesMarkerIconPng, map[string]*bintree{}},
-		"marker-shadow.png": &bintree{imagesMarkerShadowPng, map[string]*bintree{}},
+		"marker-icon.png":    &bintree{imagesMarkerIconPng, map[string]*bintree{}},
+		"marker-shadow.png":  &bintree{imagesMarkerShadowPng, map[string]*bintree{}},
 	}},
-	"leaflet.css": &bintree{leafletCss, map[string]*bintree{}},
-	"leaflet.js": &bintree{leafletJs, map[string]*bintree{}},
+	"leaflet.css":              &bintree{leafletCss, map[string]*bintree{}},
+	"leaflet.js":               &bintree{leafletJs, map[string]*bintree{}},
 	"leaflet.rotatedMarker.js": &bintree{leafletRotatedmarkerJs, map[string]*bintree{}},
 }}
 
@@ -395,4 +396,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-
